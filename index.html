@@ -560,7 +560,7 @@ body {
   <div class="popup-body">
     <div class="popup-title">审批意见</div>
     <div class="textarea-box" id="textarea-box">
-      <textarea class="comment-input" id="comment-input" placeholder="请输入内容" oninput="clearFieldError()"></textarea>
+      <textarea class="comment-input" id="comment-input" placeholder="请输入内容" oninput="clearFieldError()" onfocus="onInputFocus()"></textarea>
       <div class="textarea-bottom">
         <div class="icon-btn" title="上传附件">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -720,6 +720,11 @@ function cancelHidePopup() {
 
 function onApproveHover() {
   showPopup('同意', true);
+}
+
+function onInputFocus() {
+  isHoverMode = false;
+  cancelHidePopup();
 }
 
 function onApproveClick() {
