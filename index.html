@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>待办详情 Demo</title>
+<style>
+/* ── Reset ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'PingFang SC', 'Helvetica Neue', -apple-system, 'Microsoft YaHei', sans-serif;
+  font-size: 14px; color: #1d2129; line-height: 1.6;
+  background: #f0f3f8;
+}
+
+/* ── Background Page (simulated) ──────────── */
+.bg-page {
+  position: fixed; inset: 0;
+  background: #f0f3f8;
+  display: flex; flex-direction: column;
+}
+.bg-topbar {
+  height: 48px; background: #1d2129;
+  display: flex; align-items: center; padding: 0 20px; gap: 20px;
+  flex-shrink: 0;
+}
+.bg-logo {
+  width: 100px; height: 20px; background: rgba(255,255,255,0.2); border-radius: 4px;
+}
+.bg-body { flex: 1; display: flex; min-height: 0; }
+.bg-sidebar {
+  width: 200px; flex-shrink: 0;
+  background: #fff; border-right: 1px solid #e5eaf0;
+  padding: 12px 0;
+}
+.bg-menu {
+  padding: 8px 16px; font-size: 13px;
+  display: flex; align-items: center; gap: 8px;
+  color: #86909c; cursor: default;
+}
+.bg-menu.active { color: #2166ff; background: #eff4ff; }
+.bg-menu-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.bg-main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.bg-row {
+  height: 32px; border-radius: 4px; background: #e5eaf0;
+}
+
+/* ── Overlay ───────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(29, 33, 41, 0.4);
+  z-index: 10;
+}
+
+/* ── Drawer ────────────────────────────────── */
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(1200px, calc(100vw - 280px));
+  background: transparent;
+  display: flex; flex-direction: column;
+  z-index: 20;
+}
+
+/* ── Header ────────────────────────────────── */
+.drawer-header {
+  height: 56px; flex-shrink: 0;
+  background: #fff; border-bottom: 1px solid #e5eaf0;
+  padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header-left { display: flex; align-items: center; gap: 8px; }
+.btn-close {
+  width: 16px; height: 16px; cursor: pointer;
+  color: #86909c; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.btn-close:hover { color: #1d2129; }
+.header-title { font-size: 16px; font-weight: 500; color: #1d2129; white-space: nowrap; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.nav-group {
+  display: flex; border: 1px solid #e5eaf0; border-radius: 4px;
+  overflow: hidden;
+}
+.nav-btn {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #86909c;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.nav-btn:hover:not(.disabled) { background: #f7f8fa; color: #1d2129; }
+.nav-btn + .nav-btn { border-left: 1px solid #e5eaf0; }
+.nav-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+.icon-expand {
+  cursor: pointer; color: #86909c; display: flex; align-items: center;
+  transition: color 0.15s;
+}
+.icon-expand:hover { color: #1d2129; }
+
+/* ── Body ──────────────────────────────────── */
+.drawer-body {
+  flex: 1; min-height: 0;
+  background: #f0f3f8;
+  display: flex; gap: 12px; padding: 12px;
+  overflow: hidden;
+}
+
+/* ── Left Panel ─────────────────────────────── */
+.panel-left {
+  flex: 1; min-width: 0;
+  background: #fff; border-radius: 8px;
+  padding: 12px 16px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 36px;
+}
+.skel-group { display: flex; flex-direction: column; gap: 12px; }
+.skel {
+  height: 16px; border-radius: 4px;
+  background: linear-gradient(90deg, #f0f3f8 25%, #e4eaf1 50%, #f0f3f8 75%);
+  background-size: 400% 100%;
+  animation: shimmer 1.8s infinite;
+}
+@keyframes shimmer { to { background-position: -400% 0; } }
+.skel-s { width: 142px; }
+.skel-m { width: 262px; }
+.skel-f { width: 100%; }
+
+/* ── Right Panel ────────────────────────────── */
+.panel-right {
+  width: 338px; flex-shrink: 0;
+  background: #fff; border-radius: 8px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* Tabs */
+.tabs {
+  flex-shrink: 0; position: relative;
+  border-bottom: 1px solid #e5eaf0;
+}
+.tabs-inner {
+  display: flex; padding: 0 16px;
+}
+.tab {
+  padding: 12px 16px; font-size: 14px; cursor: pointer;
+  color: #1d2129; white-space: nowrap;
+  transition: color 0.15s;
+}
+.tab:first-child { padding-left: 0; }
+.tab.active { color: #2166ff; font-weight: 500; }
+.tab-bar {
+  position: absolute; bottom: 0; height: 2px;
+  background: #2166ff; border-radius: 2px 2px 0 0;
+  transition: left 0.2s ease, width 0.2s ease;
+}
+
+/* Flow */
+.flow-wrap {
+  flex: 1; overflow-y: auto;
+  padding: 0 16px;
+}
+.flow-section { padding: 16px 0 0; }
+.section-head {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 8px;
+}
+.section-title-group { display: flex; align-items: center; gap: 4px; }
+.section-title { font-size: 14px; font-weight: 500; }
+.section-title.blue { color: #2166ff; }
+.section-title.black { color: #1d2129; }
+.section-time { font-size: 13px; color: #86909c; }
+.timeline { display: flex; gap: 11px; padding-left: 7px; }
+.tl-line {
+  width: 0; flex-shrink: 0;
+  border-left: 1px dashed #ccd3df;
+  margin-top: 6px; align-self: stretch;
+}
+.tl-content { flex: 1; padding: 6px 0 16px; }
+.flow-card {
+  background: #f7f8fa; border-radius: 8px;
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.card-top { display: flex; align-items: center; justify-content: space-between; }
+.card-label { font-size: 12px; color: #86909c; }
+.tag {
+  font-size: 12px; line-height: 20px;
+  padding: 0 8px; border-radius: 3px;
+  display: inline-flex; align-items: center;
+}
+.tag-processing { background: rgba(48,180,254,0.15); color: #004b83; }
+.tag-initiated { background: rgba(90,194,98,0.15); color: #1b5924; }
+.person-row { display: flex; align-items: center; gap: 8px; }
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; font-weight: 500; flex-shrink: 0;
+  background: linear-gradient(135deg, #ffb347, #e07b00);
+}
+.avatar-2 { background: linear-gradient(135deg, #f5a623, #c87000); }
+.person-name { font-size: 14px; color: #1d2129; }
+.card-meta { font-size: 12px; color: #86909c; }
+.card-meta strong { color: #1d2129; font-weight: 400; }
+
+/* ── Footer ─────────────────────────────────── */
+.drawer-footer {
+  height: 64px; flex-shrink: 0;
+  background: #fff; border-top: 1px solid #e5eaf0;
+  padding: 0 24px;
+  display: flex; align-items: center; justify-content: flex-end;
+}
+.footer-inner { display: flex; align-items: center; gap: 12px; }
+.tools { display: flex; align-items: center; gap: 16px; }
+.tool {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; color: #1d2129; cursor: pointer;
+  white-space: nowrap; transition: color 0.15s;
+}
+.tool:hover { color: #2166ff; }
+.tool svg { flex-shrink: 0; }
+.btn {
+  height: 32px; padding: 0 16px;
+  border-radius: 4px; font-size: 14px; cursor: pointer;
+  border: 1px solid; outline: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 74px; font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap; line-height: 1;
+}
+.btn:active { opacity: 0.75; }
+.btn-reject {
+  background: #fff; border-color: #e2483d; color: #e2483d;
+}
+.btn-reject:hover { background: #fff5f5; }
+.btn-approve {
+  background: #2166ff; border-color: #2166ff; color: #fff;
+  position: relative;
+}
+.btn-approve:hover { background: #1a52cc; border-color: #1a52cc; }
+.btn-default {
+  background: #fff; border-color: #ccd3df; color: #1d2129;
+}
+.btn-default:hover { background: #f7f8fa; }
+.btn-primary {
+  background: #2166ff; border-color: #2166ff; color: #fff;
+}
+.btn-primary:hover { background: #1a52cc; border-color: #1a52cc; }
+.btn-danger {
+  background: #e2483d; border-color: #e2483d; color: #fff;
+}
+.btn-danger:hover { background: #c73b31; border-color: #c73b31; }
+
+/* ── Comment Popup ──────────────────────────── */
+.comment-popup {
+  position: fixed; bottom: 72px; right: 24px;
+  width: 520px;
+  background: #fff; border-radius: 8px;
+  box-shadow: 0 0 1px rgba(0,0,0,0.25), 0 4px 14px rgba(0,0,0,0.12);
+  z-index: 40; overflow: hidden;
+  opacity: 0; transform: translateY(6px) scale(0.99);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+.comment-popup.show {
+  opacity: 1; transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.popup-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.popup-title { font-size: 14px; font-weight: 500; color: #1d2129; }
+.textarea-box {
+  border: 1px solid #ccd3df; border-radius: 4px;
+  padding: 6px 12px 8px;
+  display: flex; flex-direction: column;
+  min-height: 118px;
+  transition: border-color 0.15s;
+}
+.textarea-box:focus-within { border-color: #2166ff; box-shadow: 0 0 0 2px rgba(33,102,255,0.08); }
+.textarea-box.error { border-color: #e2483d; box-shadow: 0 0 0 2px rgba(226,72,61,0.08); }
+.textarea-box.error:focus-within { border-color: #e2483d; box-shadow: 0 0 0 2px rgba(226,72,61,0.08); }
+.field-error { font-size: 12px; color: #e2483d; margin-top: 4px; display: none; }
+.field-error.show { display: block; }
+.comment-input {
+  border: none; outline: none; resize: none; width: 100%;
+  font-size: 14px; color: #1d2129; font-family: inherit;
+  line-height: 22px; min-height: 66px; flex: 1;
+  background: transparent;
+}
+.comment-input::placeholder { color: #b4bbc7; }
+.textarea-bottom { display: flex; justify-content: flex-end; margin-top: 4px; }
+.icon-btn {
+  width: 28px; height: 28px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #86909c;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover { background: #f0f3f8; color: #1d2129; }
+.quick-section { display: flex; flex-direction: column; gap: 6px; }
+.quick-label {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; color: #2166ff; cursor: pointer;
+  user-select: none;
+}
+.quick-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.qtag {
+  background: #f0f3f8; color: #272e3b;
+  font-size: 12px; line-height: 20px;
+  padding: 2px 8px; border-radius: 3px;
+  cursor: pointer; user-select: none;
+  max-width: 220px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  transition: background 0.12s;
+}
+.qtag:hover { background: #dde5f0; }
+.popup-footer {
+  padding: 12px 20px 16px;
+  display: flex; justify-content: flex-end; gap: 12px;
+  border-top: 1px solid #f0f3f8;
+}
+
+/* ── Toast ──────────────────────────────────── */
+.toast {
+  position: fixed; top: 20px; left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: rgba(29,33,41,0.88); color: #fff;
+  font-size: 14px; padding: 10px 18px; border-radius: 8px;
+  z-index: 100; white-space: nowrap;
+  opacity: 0; transition: opacity 0.2s, transform 0.2s;
+  display: flex; align-items: center; gap: 8px;
+  pointer-events: none;
+}
+.toast.show {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}
+</style>
+</head>
+<body>
+
+<!-- ── Background Page ─────────────────────── -->
+<div class="bg-page" aria-hidden="true">
+  <div class="bg-topbar">
+    <div class="bg-logo"></div>
+  </div>
+  <div class="bg-body">
+    <div class="bg-sidebar">
+      <div class="bg-menu">
+        <div class="bg-menu-dot"></div>工作台
+      </div>
+      <div class="bg-menu active">
+        <div class="bg-menu-dot"></div>审批中心
+      </div>
+      <div class="bg-menu">
+        <div class="bg-menu-dot"></div>申请管理
+      </div>
+      <div class="bg-menu">
+        <div class="bg-menu-dot"></div>费用管理
+      </div>
+    </div>
+    <div class="bg-main">
+      <div class="bg-row" style="width: 60%;"></div>
+      <div class="bg-row" style="width: 100%;"></div>
+      <div class="bg-row" style="width: 85%;"></div>
+      <div class="bg-row" style="width: 100%; margin-top: 8px;"></div>
+      <div class="bg-row" style="width: 72%;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Overlay ──────────────────────────────── -->
+<div class="overlay"></div>
+
+<!-- ── Drawer ───────────────────────────────── -->
+<div class="drawer" id="drawer">
+
+  <!-- Header -->
+  <div class="drawer-header">
+    <div class="header-left">
+      <div class="btn-close" onclick="closeDrawer()" title="关闭">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="header-title" id="header-title">待办详情 1</span>
+    </div>
+    <div class="header-right">
+      <div class="nav-group">
+        <div class="nav-btn disabled" id="btn-prev" onclick="navigate(-1)" title="上一条">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="nav-btn" id="btn-next" onclick="navigate(1)" title="下一条">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="drawer-body">
+
+    <!-- Left skeleton -->
+    <div class="panel-left">
+      <div class="skel-group">
+        <div class="skel skel-s"></div>
+        <div class="skel skel-f"></div>
+        <div class="skel skel-f"></div>
+      </div>
+      <div class="skel-group">
+        <div class="skel skel-s"></div>
+        <div class="skel skel-f"></div>
+        <div class="skel skel-f"></div>
+      </div>
+      <div class="skel-group">
+        <div class="skel skel-s"></div>
+        <div class="skel skel-f"></div>
+        <div class="skel skel-m"></div>
+      </div>
+      <div class="skel-group">
+        <div class="skel skel-s"></div>
+        <div class="skel skel-f"></div>
+        <div class="skel skel-f"></div>
+      </div>
+      <div class="skel-group">
+        <div class="skel skel-s"></div>
+        <div class="skel skel-f"></div>
+        <div class="skel skel-f"></div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="panel-right">
+      <div class="tabs">
+        <div class="tabs-inner">
+          <div class="tab active" data-idx="0" onclick="switchTab(this)">流程动态</div>
+          <div class="tab" data-idx="1" onclick="switchTab(this)">数据日志</div>
+          <div class="tab" data-idx="2" onclick="switchTab(this)">评论</div>
+        </div>
+        <div class="tab-bar" id="tab-bar"></div>
+      </div>
+
+      <div class="flow-wrap" id="flow-wrap">
+        <!-- Current node -->
+        <div class="flow-section">
+          <div class="section-head">
+            <div class="section-title-group">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 5l4 4 4-4" stroke="#2166ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="section-title blue">当前节点名称</span>
+            </div>
+          </div>
+          <div class="timeline">
+            <div class="tl-line"></div>
+            <div class="tl-content">
+              <div class="flow-card">
+                <div class="card-top">
+                  <span class="card-label">当前负责人</span>
+                  <span class="tag tag-processing">处理中</span>
+                </div>
+                <div class="person-row">
+                  <div class="avatar">江</div>
+                  <span class="person-name">江太子</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Initiate node -->
+        <div class="flow-section">
+          <div class="section-head">
+            <div class="section-title-group">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 5l4 4 4-4" stroke="#1d2129" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="section-title black">发起审批</span>
+            </div>
+            <span class="section-time">2024-07-18 20:44</span>
+          </div>
+          <div class="timeline">
+            <div class="tl-line"></div>
+            <div class="tl-content">
+              <div class="flow-card">
+                <div class="card-top">
+                  <span class="card-label">当前负责人</span>
+                  <span class="tag tag-initiated">发起</span>
+                </div>
+                <div class="person-row">
+                  <div class="avatar avatar-2">周</div>
+                  <span class="person-name">周饺饺</span>
+                </div>
+                <div class="card-meta">处理耗时：<strong>1 秒</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="drawer-footer">
+    <div class="footer-inner">
+      <div class="tools">
+        <div class="tool">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="4" cy="8" r="1.4" fill="currentColor"/>
+            <circle cx="8" cy="8" r="1.4" fill="currentColor"/>
+            <circle cx="12" cy="8" r="1.4" fill="currentColor"/>
+          </svg>
+          更多
+        </div>
+        <div class="tool">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M7 9c2.2 0 4-1.8 4-4S9.2 1 7 1 3 2.8 3 5s1.8 4 4 4zM1 14c0-2.8 2.7-5 6-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M13 10v4M11 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+          飞书建群
+        </div>
+        <div class="tool">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M1 4h14v9H1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            <path d="M5 13v2M11 13v2M5 15h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+          抄送
+        </div>
+        <div class="tool" onclick="showPopup('加签')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          加签
+        </div>
+        <div class="tool" onclick="showPopup('转交')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 8h9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M8 5l3 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          转交
+        </div>
+      </div>
+      <button class="btn btn-reject" onclick="showPopup('驳回')">驳回</button>
+      <button class="btn btn-approve" id="approve-btn"
+        onmouseenter="onApproveHover()"
+        onmouseleave="scheduleHidePopup()"
+        onclick="onApproveClick()">同意</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Comment Popup ─────────────────────────── -->
+<div class="comment-popup" id="comment-popup"
+  onmouseenter="cancelHidePopup()"
+  onmouseleave="scheduleHidePopup()">
+  <div class="popup-body">
+    <div class="popup-title">审批意见</div>
+    <div class="textarea-box" id="textarea-box">
+      <textarea class="comment-input" id="comment-input" placeholder="请输入内容" oninput="clearFieldError()"></textarea>
+      <div class="textarea-bottom">
+        <div class="icon-btn" title="上传附件">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 10V3M5 6l3-3 3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 13h12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="field-error" id="field-error">请填写审批意见</div>
+    <div class="quick-section">
+      <div class="quick-label">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M6 4.5v3M6 9v.1" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+        快捷回复
+      </div>
+      <div class="quick-tags">
+        <span class="qtag" onclick="fillComment('同意')">同意</span>
+        <span class="qtag" onclick="fillComment('金额准确')">金额准确</span>
+        <span class="qtag" onclick="fillComment('资料齐全，符合规定')">资料齐全，符合规定</span>
+        <span class="qtag" onclick="fillComment('符合预算，同意处理')">符合预算，同意处理</span>
+        <span class="qtag" title="超长文本超长文本超长文本超长文本超长文本超长文本"
+          onclick="fillComment('超长文本超长文本超长文本超长文本超长文本超长文本')">
+          超长文本超长文本超长文本超长文本超长文本超长文本
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="popup-footer">
+    <button class="btn btn-default" onclick="hidePopup()">取消</button>
+    <button class="btn btn-primary" id="popup-confirm" onclick="confirmAction()">同意</button>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────── -->
+<div class="toast" id="toast">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="7" fill="#4caf50"/>
+    <path d="M5 8l2.5 2.5L11 5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <span id="toast-text">已同意</span>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────
+let currentIdx = 0;
+let pendingAction = '同意';
+let toastTimer = null;
+let hideTimer = null;
+let isHoverMode = false; // 悬停触发时为 true，点击触发时为 false
+
+const items = [
+  { title: '待办详情 1' },
+  { title: '待办详情 2' },
+  { title: '待办详情 3' },
+  { title: '待办详情 4' },
+  { title: '待办详情 5' },
+  { title: '待办详情 6' },
+  { title: '待办详情 7' },
+  { title: '待办详情 8' },
+  { title: '待办详情 9' },
+  { title: '待办详情 10' },
+];
+
+// ── Init ──────────────────────────────────────
+function init() {
+  renderNav();
+  requestAnimationFrame(positionTabBar);
+  window.addEventListener('resize', positionTabBar);
+}
+
+function renderNav() {
+  document.getElementById('header-title').textContent = items[currentIdx].title;
+  document.getElementById('btn-prev').classList.toggle('disabled', currentIdx === 0);
+  document.getElementById('btn-next').classList.toggle('disabled', currentIdx >= items.length - 1);
+}
+
+// ── Navigation ────────────────────────────────
+function navigate(dir) {
+  const next = currentIdx + dir;
+  if (next < 0 || next >= items.length) return;
+  currentIdx = next;
+  hidePopup();
+  renderNav();
+}
+
+// ── Tabs ──────────────────────────────────────
+function switchTab(el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const idx = parseInt(el.dataset.idx);
+  document.getElementById('flow-wrap').style.display = idx === 0 ? '' : 'none';
+  positionTabBar();
+}
+
+function positionTabBar() {
+  const activeTab = document.querySelector('.tab.active');
+  const bar = document.getElementById('tab-bar');
+  const inner = document.querySelector('.tabs-inner');
+  if (!activeTab || !bar || !inner) return;
+  const iRect = inner.getBoundingClientRect();
+  const tRect = activeTab.getBoundingClientRect();
+  const padL = parseFloat(getComputedStyle(activeTab).paddingLeft) || 0;
+  const padR = parseFloat(getComputedStyle(activeTab).paddingRight) || 0;
+  bar.style.left = (tRect.left - iRect.left + padL) + 'px';
+  bar.style.width = (tRect.width - padL - padR) + 'px';
+}
+
+// ── Popup ─────────────────────────────────────
+function showPopup(action, hoverMode = false) {
+  isHoverMode = hoverMode;
+  cancelHidePopup();
+  pendingAction = action;
+  const confirmBtn = document.getElementById('popup-confirm');
+
+  if (action === '驳回') {
+    confirmBtn.textContent = '驳回';
+    confirmBtn.className = 'btn btn-danger';
+  } else if (action === '转交') {
+    confirmBtn.textContent = '转交';
+    confirmBtn.className = 'btn btn-primary';
+  } else if (action === '加签') {
+    confirmBtn.textContent = '加签';
+    confirmBtn.className = 'btn btn-primary';
+  } else {
+    confirmBtn.textContent = '同意';
+    confirmBtn.className = 'btn btn-primary';
+  }
+
+  document.getElementById('comment-popup').classList.add('show');
+}
+
+function hidePopup() {
+  clearTimeout(hideTimer);
+  document.getElementById('comment-popup').classList.remove('show');
+  document.getElementById('comment-input').value = '';
+  clearFieldError();
+  isHoverMode = false;
+}
+
+function clearFieldError() {
+  document.getElementById('textarea-box').classList.remove('error');
+  document.getElementById('field-error').classList.remove('show');
+}
+
+function scheduleHidePopup() {
+  if (!isHoverMode) return; // 点击触发的弹框不受 hover 消失影响
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => hidePopup(), 200);
+}
+
+function cancelHidePopup() {
+  clearTimeout(hideTimer);
+}
+
+function onApproveHover() {
+  showPopup('同意', true);
+}
+
+function onApproveClick() {
+  const popup = document.getElementById('comment-popup');
+  if (popup.classList.contains('show') && pendingAction === '同意') {
+    confirmAction();
+  } else {
+    showPopup('同意');
+  }
+}
+
+function fillComment(text) {
+  const input = document.getElementById('comment-input');
+  input.value = text;
+  input.focus();
+}
+
+// ── Confirm ───────────────────────────────────
+function confirmAction() {
+  const action = pendingAction;
+  const input = document.getElementById('comment-input');
+
+  // 非「同意」时审批意见必填
+  if (action !== '同意' && !input.value.trim()) {
+    document.getElementById('textarea-box').classList.add('error');
+    document.getElementById('field-error').classList.add('show');
+    input.focus();
+    return;
+  }
+
+  hidePopup();
+
+  const msgs = {
+    '同意': '已同意',
+    '驳回': '已驳回',
+    '转交': '已转交',
+    '加签': '加签成功',
+  };
+  showToast(msgs[action] || action + '成功');
+
+  if (action === '同意' && currentIdx < items.length - 1) {
+    setTimeout(() => {
+      currentIdx++;
+      renderNav();
+    }, 900);
+  }
+}
+
+// ── Toast ─────────────────────────────────────
+function showToast(text) {
+  const el = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── Close Drawer ──────────────────────────────
+function closeDrawer() {
+  const drawer = document.getElementById('drawer');
+  drawer.style.transition = 'transform 0.3s ease';
+  drawer.style.transform = 'translateX(100%)';
+  document.querySelector('.overlay').style.transition = 'opacity 0.3s';
+  document.querySelector('.overlay').style.opacity = '0';
+  setTimeout(() => {
+    drawer.style.transition = '';
+    drawer.style.transform = '';
+    document.querySelector('.overlay').style.transition = '';
+    document.querySelector('.overlay').style.opacity = '';
+  }, 1800);
+}
+
+// ── Click outside popup ───────────────────────
+document.addEventListener('mousedown', function(e) {
+  const popup = document.getElementById('comment-popup');
+  if (!popup.classList.contains('show')) return;
+
+  const approveBtn = document.getElementById('approve-btn');
+  const isInsidePopup = popup.contains(e.target);
+  const isApproveBtn = approveBtn.contains(e.target);
+  const isTrigger = e.target.closest('.btn-reject') || e.target.closest('.tool');
+
+  if (!isInsidePopup && !isApproveBtn && !isTrigger) {
+    hidePopup();
+  }
+});
+
+init();
+</script>
+</body>
+</html>
