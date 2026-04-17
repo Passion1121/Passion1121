@@ -591,7 +591,7 @@ body {
       </div>
     </div>
   </div>
-  <div class="popup-footer">
+  <div class="popup-footer" id="popup-footer">
     <button class="btn btn-default" onclick="hidePopup()">取消</button>
     <button class="btn btn-primary" id="popup-confirm" onclick="confirmAction()">同意</button>
   </div>
@@ -692,6 +692,7 @@ function showPopup(action, hoverMode = false) {
     confirmBtn.className = 'btn btn-primary';
   }
 
+  document.getElementById('popup-footer').style.display = action === '同意' ? 'none' : '';
   document.getElementById('comment-popup').classList.add('show');
 }
 
